@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.10)
+project(JARVIS_AI)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "-O3")
+
+# Include directories for external libraries
+include_directories(${CMAKE_SOURCE_DIR}/src/cpp)
+
+# Define source files
+set(SOURCES
+    src/cpp/main.cpp
+    src/cpp/memory.cpp
+    src/cpp/optimization.cpp
+    src/cpp/automation.cpp
+)
+
+# Create executable
+add_executable(jarvis ${SOURCES})
+
+# Link external libraries
+find_package(OpenCV REQUIRED)
+target_link_libraries(jarvis ${OpenCV_LIBS})
