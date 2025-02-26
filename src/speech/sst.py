@@ -4,7 +4,12 @@ import pyaudio
 import matplotlib.pyplot as plt
 import numpy as np
 import wave
+import time 
 
+FRAMES_PER_BUFFER = 3200
+FORMAT = pyaudio.paInt16
+CHANNEL = 1
+RATE = 160000
 # model = faster_whisper.WhisperModel("medium",compute_type="float16")
 
 class SpeechToText:
@@ -12,7 +17,7 @@ class SpeechToText:
         os.environ["PATH"] += os.pathsep + r"C:\ffmpeg\bin"
         self.chunck = 1024
         self.model = model
-        self.p = pyaudio.PyAudio()
+        self.p = pyaudio.PyAudio() 
 
     def processingAudioInFiles(self,filePath):
         obj = wave.open(filePath,"rb")
@@ -38,7 +43,26 @@ class SpeechToText:
         plt.xlim(0,tAudio)
         plt.show()
 
+    def microPhoneInput(self,framesPerBuffer,channel,format,rate):
+        p =  pyaudio.PyAudio()
 
+        stream = p.open(
+            format=format,
+            channels=channel,
+            rate = rate,
+            input = True,
+            frames_per_buffer=framesPerBuffer
+        )
+        frames = []
+        try:
+            while True:
+                data = stream.read(framesPerBuffer)
+                frames.append(data)
+        except KeyboardInterrupt:
+            pass 
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
 
 sst = SpeechToText()
 
