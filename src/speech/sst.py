@@ -10,7 +10,7 @@ FRAMES_PER_BUFFER = 3200
 FORMAT = pyaudio.paInt16
 CHANNEL = 1
 RATE = 160000
-# model = faster_whisper.WhisperModel("medium",compute_type="float16")
+model = faster_whisper.WhisperModel("medium",compute_type="int8")
 
 class SpeechToText:
     def __init__(self,model = None):
