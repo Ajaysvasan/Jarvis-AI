@@ -6,6 +6,7 @@ import numpy as np
 import wave
 import silero_vad
 import torch 
+import io
 
 FRAMES_PER_BUFFER = 1024
 FORMAT = pyaudio.paInt16
@@ -63,13 +64,20 @@ class SpeechToText:
             sampling_rate = RATE
         )
         return len(getTimeStamp)>0
+    
+    def framesToAudioArray(self,frames):
+        audioArray = b''.join(frames)
+        return np.frombuffer(audioArray,dtype=np.int16)
+
+    def transcribeAudioBuffer(self,audioData):
+        if not isinstance(audioData,np.ndarray):
+            audioData = np.frombuffer(audioData,dtype=np.int16)
+        audioBytes = io.BytesIO()
+
+        segments,info = self.model.transcribe(audioData,beam_size = 5)
+        transcript = "".join([segment.text for segment in segments])
+        return transcript
+
+
 
 sst = SpeechToText()
-
-audioFilePath = r"D:\SIH project\AUDIO\REAL\margot-original.wav"
-
-# sampleFreq,nSamples,signalWave = sst.processingAudioInFiles(audioFilePath)
-
-# sst.audioPlot(signalWave=signalWave, sampleFreq=sampleFreq, nSamples=nSamples)
-
-sst.microPhoneInput(framesPerBuffer=FRAMES_PER_BUFFER,channel=CHANNEL,format=FORMAT,rate = RATE)
