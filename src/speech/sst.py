@@ -4,6 +4,7 @@ import pyaudio
 import matplotlib.pyplot as plt
 import numpy as np
 import wave
+import silero_vad
 import time 
 
 FRAMES_PER_BUFFER = 3200
@@ -45,7 +46,6 @@ class SpeechToText:
 
     def microPhoneInput(self,framesPerBuffer,channel,format,rate):
         p =  pyaudio.PyAudio()
-
         stream = p.open(
             format=format,
             channels=channel,
@@ -58,16 +58,20 @@ class SpeechToText:
             while True:
                 data = stream.read(framesPerBuffer)
                 frames.append(data)
+                print(frames)
         except KeyboardInterrupt:
             pass 
         stream.stop_stream()
         stream.close()
         p.terminate()
+        return frames
 
 sst = SpeechToText()
 
 audioFilePath = r"D:\SIH project\AUDIO\REAL\margot-original.wav"
 
-sampleFreq,nSamples,signalWave = sst.processingAudioInFiles(audioFilePath)
+# sampleFreq,nSamples,signalWave = sst.processingAudioInFiles(audioFilePath)
 
-sst.audioPlot(signalWave=signalWave, sampleFreq=sampleFreq, nSamples=nSamples)
+# sst.audioPlot(signalWave=signalWave, sampleFreq=sampleFreq, nSamples=nSamples)
+
+sst.microPhoneInput(framesPerBuffer=FRAMES_PER_BUFFER,channel=CHANNEL,format=FORMAT,rate = RATE)
