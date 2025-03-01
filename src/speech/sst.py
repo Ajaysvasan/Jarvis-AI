@@ -12,19 +12,18 @@ FRAMES_PER_BUFFER = 1024
 FORMAT = pyaudio.paInt16
 CHANNEL = 1
 RATE = 16000
-model = faster_whisper.WhisperModel("medium",compute_type="int8")
 SILENCE_VALUE = 5
 
 class SpeechToText:
     def __init__(self,model = None):
         os.environ["PATH"] += os.pathsep + r"C:\ffmpeg\bin"
         self.chunck = 1024
-        self.model = model
-        self.p = pyaudio.PyAudio() 
+        self.model = model if model else faster_whisper.WhisperModel("medium",compute_type="int8")
 
         self.vadModel , utils = torch.hub.load(
-                                repo_or_dir='snakes4/silero_vad',
+                                repo_or_dir='snakers4/silero-vad',
                                 model = "silero_vad",
+                                trust_repo =True,
                                 force_reload=True)
         self.vadModel.eval()
         self.getSpeechTimeStamps = utils[0]
@@ -37,6 +36,46 @@ class SpeechToText:
         obj.close()
         return sampleFreq,nSamples,signalWave
     
+    def writeWaveFile(self):
+        frames = self.recording()
+        p = pyaudio.PyAudio()
+        obj = wave.open("temp.wav","wb")
+        obj.setnchannels(CHANNEL)
+        obj.setsampwidth(p.get_sample_size(FORMAT))
+        obj.setframerate(RATE)
+        obj.writeframes(b''.join(frames))
+        obj.close()
+        
+        
+    def recording(self):
+        p = pyaudio.PyAudio()
+        stream = p.open(
+            format=FORMAT,
+            rate = RATE,
+            channels=CHANNEL,
+            input = True,
+            frames_per_buffer=FRAMES_PER_BUFFER
+        )
+        print("Start recording")
+        frames = []
+        try:
+            while True:
+                data = stream.read(FRAMES_PER_BUFFER,exception_on_overflow=False)
+                frames.append(data)
+        except KeyboardInterrupt:
+            print("Recording stopped")
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+        return frames
+    
+
+    def transcribing(self,audioFile):
+        self.writeWaveFile()
+        segments,_ = self.model.transcribe(audioFile)
+        text = "".join([segment.text for segment in segments])
+        return text
+
     # signalWaves -> total number of frames, signalFreq -> frameRate, nSamples -> number of samples (obj.getnframe)
     def audioPlot(self,signalWave,sampleFreq,nSamples):
         tAudio = nSamples / sampleFreq
@@ -54,30 +93,11 @@ class SpeechToText:
         plt.xlim(0,tAudio)
         plt.show()
 
-    def isSpeech(self,audioChuck):
-        audio_int16 = np.frombuffer(audioChuck,np.int16)
-        audio_float32 = torch.FloatTensor(audio_int16.astype(np.int16)/32768.0)
-        getTimeStamp = self.getSpeechTimeStamps(
-            audio_float32,
-            self.vadModel,
-            threshold = 0.5,
-            sampling_rate = RATE
-        )
-        return len(getTimeStamp)>0
-    
-    def framesToAudioArray(self,frames):
-        audioArray = b''.join(frames)
-        return np.frombuffer(audioArray,dtype=np.int16)
-
-    def transcribeAudioBuffer(self,audioData):
-        if not isinstance(audioData,np.ndarray):
-            audioData = np.frombuffer(audioData,dtype=np.int16)
-        audioBytes = io.BytesIO()
-
-        segments,info = self.model.transcribe(audioData,beam_size = 5)
-        transcript = "".join([segment.text for segment in segments])
-        return transcript
 
 
+
+audioFilePath = os.path.abspath("temp.wav")
 
 sst = SpeechToText()
+test = sst.transcribing(audioFile=audioFilePath)
+print(test)

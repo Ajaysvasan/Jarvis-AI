@@ -54,3 +54,5 @@ desktop.ini
 .src/
 .speech/
 learning.py
+
+temp.wav
