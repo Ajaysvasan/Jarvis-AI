@@ -1,11 +1,10 @@
-# 🛑 Ignore Python Virtual Environment
+
 venv/
 *.pyc
 *.pyo
 __pycache__/
 *.swp
 
-# 🛑 Ignore C++ Build Files
 build/
 *.o
 *.obj
@@ -22,7 +21,6 @@ build/
 cmake-build-debug/
 CMakeLists.txt.user
 
-# 🛑 Ignore AI Model Files & Large Datasets
 models/
 checkpoints/
 *.onnx
@@ -33,20 +31,18 @@ checkpoints/
 *.ckpt
 *.tar.gz
 
-# 🛑 Ignore Logs & Debug Files
 logs/
 *.log
 *.csv
 *.tsv
 
-# 🛑 Ignore IDE & Editor Settings
 .vscode/
 .idea/
 *.iml
 *.sublime-workspace
 *.sublime-project
 
-# 🛑 Ignore System-Specific Files
+
 .DS_Store
 Thumbs.db
 desktop.ini
