@@ -2,7 +2,10 @@ import re
 import unidecode
 import inflect
 import nltk
-
+import librosa
+import matplotlib.pyplot as plt
+import numpy as np
+import soundfile as sf
 
 class TextPreprocessing:
     def __init__(self,text:str):
@@ -23,7 +26,7 @@ class TextPreprocessing:
                 preproceedText += p.number_to_words((int(string))) + ' '
             else:
                 preproceedText += string + " "
-        self.text = preproceedText.strip()
+        return preproceedText.strip()
 
 class PhonemeMapper:
     def __init__(self):
@@ -84,7 +87,7 @@ class PhonemeMapper:
 
     def get_th_phoneme(self, word, index):
         voicedWords = ["this", "that", "the", "those", "these"]
-        if word.lower() in voicedWords:
+        if word in voicedWords:
             return self.phoneme_map["digraphs"]["th"]["voiced"]
         return self.phoneme_map["digraphs"]["th"]["voiceless"]
 
@@ -128,7 +131,13 @@ class PhonemeMapper:
         return phonemes
 
     def map_text(self, text):
-        pass
+        words = text.split()
+        return {
+            word:self.map_word_to_phonemes(word) for word in words
+        }
 
-t = TextPreprocessing("Hello world 1234 $ % . I'am Ajay s vasan and I'am a DR.")
-print(t.numbersToText())
+t = TextPreprocessing("Hello world.")
+
+phoneme = PhonemeMapper()
+
+print(phoneme.map_text(t.numbersToText()))
