@@ -6,6 +6,7 @@ import nltk
 class TextPreprocessing:
     def __init__(self,text:str):
         self.text = text
+        
     
     def normalize(self):
         self.text = self.text.lower()
@@ -21,9 +22,8 @@ class TextPreprocessing:
                 preproceedText += p.number_to_words((int(string))) + ' '
             else:
                 preproceedText += string + " "
-        return preproceedText.strip()
-    
+        self.text = preproceedText.strip()
 
-t = TextPreprocessing("Hello world 1234 $%. I'am Ajay s vasan and I'am a DR.")
-
-print(t.numbersToText())
+t = TextPreprocessing("Hello world 1234 $ % . I'am Ajay s vasan and I'am a DR.")
+# t.normalize()
+print(t.abrevations())
