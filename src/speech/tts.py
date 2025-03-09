@@ -3,6 +3,7 @@ import unidecode
 import inflect
 import nltk
 
+
 class TextPreprocessing:
     def __init__(self,text:str):
         self.text = text
@@ -80,7 +81,7 @@ class PhonemeMapper:
 
     def apply_contextual_rules(self, word:str):
         pass
-    
+
     def get_th_phoneme(self, word, index):
         voicedWords = ["this", "that", "the", "those", "these"]
         if word.lower() in voicedWords:
