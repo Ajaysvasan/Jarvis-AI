@@ -205,7 +205,7 @@ features = AcousticFeatureExtractor()
 
 print(phoneme.map_text(t.numbersToText()))
 
-FILE_PATH = r'D:\Jarvis AI\temp.wav'
+FILE_PATH = r'd:\SIH project\AUDIO\REAL\linus-original.wav'
 
 print(features.load_audio(FILE_PATH))
 
