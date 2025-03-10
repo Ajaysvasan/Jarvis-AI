@@ -7,10 +7,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 
-# text -> normalize -> phonemes -> spectormes -> speech
+# text -> normalize -> phonemes -> spectrogram -> speech
 
 import torchaudio
 
+
+FILE_PATH = r'd:\SIH project\AUDIO\REAL\linus-original.wav'
 class TextPreprocessing:
     def __init__(self,text:str):
         self.text = text
@@ -93,9 +95,39 @@ class PhonemeMapper:
             "singles": singlLetteRmap
         }
 
+    def apply_contextual_rules(self, word: str) -> str:
+        # Rule 1: Silent letters
+        if word.startswith("kn"):
+            word = word.replace("k", "", 1)
+        if word.startswith("wr"):
+            word = word.replace("w", "", 1)
+        if word.startswith("gn"):
+            word = word.replace("g", "", 1)
+        if word.endswith("mb"):
+            word = word[:-1]  # remove 'b' in words like 'comb', 'bomb'
 
-    def apply_contextual_rules(self, word:str):
-        pass
+        # Rule 2: Phoneme simplification / merging
+        word = word.replace("ai", "ay")
+        word = word.replace("ea", "ee")
+        word = word.replace("ie", "iy")
+        word = word.replace("oo", "uw")
+        word = word.replace("ou", "ow")
+        word = word.replace("igh", "ay")  # e.g., night → nayt
+
+        # Rule 3: Handle word-specific exceptions
+        custom_exceptions = {
+            "knight": "nite",
+            "write": "rite",
+            "comb": "cohm",
+            "sword": "sord",
+            "colonel": "kernel",
+            "often": "offen"
+        }
+        if word in custom_exceptions:
+            return custom_exceptions[word]
+
+        return word
+
 
     def assign_phoneme_durations(self,phoneme_sequence):
         durations = []
@@ -111,6 +143,7 @@ class PhonemeMapper:
         return self.phoneme_map["digraphs"]["th"]["voiceless"]
 
     def map_word_to_phonemes(self, word: str) -> list:
+        word = self.apply_contextual_rules(word)
         phonemes = []
         i = 0
         while i < len(word):
@@ -155,6 +188,18 @@ class PhonemeMapper:
             word:self.map_word_to_phonemes(word) for word in words
         }
 
+    def duration_to_frame_mapping(self,phonemeDurationList,hopLength = 256,sampleRate = 16000):
+        totalDuration = sum([dur for _,dur in phonemeDurationList])
+        totalSamples = totalDuration * sampleRate
+        totalFrames = int(totalSamples/hopLength)
+
+        totalPhonemeDuration = sum([dur for _,dur in phonemeDurationList])
+        frameMapping = []
+        for phoneme,dur in phonemeDurationList:
+            frames = int((dur / totalPhonemeDuration) * totalFrames)
+            frameMapping.append((phoneme,frames))
+
+        return frameMapping
 
 class AcousticFeatureExtractor:
     def __init__(self, sampleRate=16000, nMels=80, nFft=1024, hopLength=256):
@@ -201,6 +246,20 @@ class AcousticFeatureExtractor:
 
         return waveform
     
+    def visualize_phoneme_alignment(self,melSpecDb,frameMapping,hopLength = 256, sampleRate = 16000 ):
+        librosa.display.specshow(melSpecDb,sr = sampleRate, hop_length=hopLength,x_axis='time',y_axis='mel')
+        plt.colorbar(format='%+2.0f db')
+        frameIndex = 0
+        for phoneme,frameCount in frameMapping:
+            time = frameIndex * hopLength / sampleRate
+            plt.axvline(x=time,color='r',linestyle = '--',linewidth = 0.7) 
+            plt.text(time,melSpecDb.shape[0] + 5,phoneme,rotation = 90,verticalalignment = 'bottom',fontsize = 8)
+            frameIndex+=frameCount
+
+        plt.title("Phoneme Alignment Over Mel-Spectrogram")
+        plt.tight_layout()
+        plt.show()
+    
     def visualize_mel_spectrogram(self, mel_spec_db):
         librosa.display.specshow(mel_spec_db, sr=self.sampleRate, hop_length=self.hopLength, x_axis='time', y_axis='mel')
         plt.colorbar(format='%+2.0f dB')
@@ -210,24 +269,26 @@ class AcousticFeatureExtractor:
     def write_audio(self,waveform):
         sf.write("reconstructed_output.wav", waveform, self.sampleRate)
 
-t = TextPreprocessing("Anish Raj.")
-
-
-
+t = TextPreprocessing("Hello world.")
 phoneme = PhonemeMapper()
-
 features = AcousticFeatureExtractor()
 
-mapedText = phoneme.map_text(t.numbersToText())
+text = t.numbersToText()
 
-print(phoneme.assign_phoneme_durations(mapedText))
 
-FILE_PATH = r'd:\SIH project\AUDIO\REAL\linus-original.wav'
+phoneme_seq = []
+for word in text.split():
+    phoneme_seq.extend(phoneme.map_word_to_phonemes(word) + [' '])
 
-print(features.load_audio(FILE_PATH))
+phoneme_durations = phoneme.assign_phoneme_durations(phoneme_seq)
+frame_mapping = phoneme.duration_to_frame_mapping(phoneme_durations)
 
-waveform,sampleRate = features.load_audio(FILE_PATH)
+waveform, _ = features.load_audio(FILE_PATH)
+mel_spec = features.extract_mel_spectrogram(waveform)
 
-print(sampleRate)
+features.visualize_phoneme_alignment(mel_spec, frame_mapping)
 
-print(features.extract_mel_spectrogram(waveform))
+print(phoneme.map_text(t.text))
+print(features.extract_mel_spectrogram(waveform=waveform))
+
+# print(features.inverted_mel_spectrogram(features.extract_mel_spectrogram(waveform)))
