@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 
+# text -> normalize -> phonemes -> spectormes -> speech
+
+import torchaudio
+
 class TextPreprocessing:
     def __init__(self,text:str):
         self.text = text
@@ -136,8 +140,77 @@ class PhonemeMapper:
             word:self.map_word_to_phonemes(word) for word in words
         }
 
+
+class AcousticFeatureExtractor:
+    def __init__(self, sampleRate=16000, nMels=80, nFft=1024, hopLength=256):
+        self.sampleRate = sampleRate
+        self.nMels = nMels
+        self.nFft = nFft
+        self.hopLength = hopLength
+
+    def load_audio(self, filePath):
+        return librosa.load(filePath,sr = self.sampleRate)
+
+    def extract_mel_spectrogram(self, waveform):
+        melSpec = librosa.feature.melspectrogram(
+            y= waveform,
+            sr = self.sampleRate,
+            n_fft=self.nFft,
+            hop_length=self.hopLength,
+            n_mels = self.nMels
+        )
+
+        melSpecDb = librosa.power_to_db(melSpec,ref=np.max)
+
+        return melSpecDb
+    
+    def inverted_mel_spectrogram(self,melSpectrogramDb):
+        melSpectrogram = librosa.db_to_power(melSpectrogramDb)
+        
+        melFilter = librosa.filters.mel(
+            sr=self.sampleRate,
+            n_fft=self.nFft,
+            n_mels=self.nMels
+        )
+
+        invMelFilter = np.linalg.pinv(melFilter)
+
+        magnitude = np.dot(invMelFilter,melSpectrogram)
+
+        waveform = librosa.griffinlim(
+            magnitude,
+            n_iter=32,
+            hop_length=self.hopLength,
+            win_length=self.nFft
+        )
+
+        return waveform
+    
+    def visualize_mel_spectrogram(self, mel_spec_db):
+        librosa.display.specshow(mel_spec_db, sr=self.sampleRate, hop_length=self.hopLength, x_axis='time', y_axis='mel')
+        plt.colorbar(format='%+2.0f dB')
+        plt.title("Mel Spectrogram")
+        plt.show()
+
+    def write_audio(self,waveform):
+        sf.write("reconstructed_output.wav", waveform, self.sampleRate)
+
 t = TextPreprocessing("Hello world.")
+
+print(t.numbersToText())
 
 phoneme = PhonemeMapper()
 
+features = AcousticFeatureExtractor()
+
 print(phoneme.map_text(t.numbersToText()))
+
+FILE_PATH = r'D:\Jarvis AI\temp.wav'
+
+print(features.load_audio(FILE_PATH))
+
+waveform,sampleRate = features.load_audio(FILE_PATH)
+
+print(sampleRate)
+
+print(features.extract_mel_spectrogram(waveform))
