@@ -35,6 +35,14 @@ class TextPreprocessing:
 class PhonemeMapper:
     def __init__(self):
         self.phoneme_map = self.build_phoneme_map()
+        self.default_phoneme_duration = {
+            "AH": 0.08, "B": 0.07, "CH": 0.09, "D": 0.06, "EH": 0.07, "F": 0.07,
+            "G": 0.07, "HH": 0.06, "IH": 0.07, "JH": 0.08, "K": 0.07, "L": 0.07,
+            "M": 0.07, "N": 0.07, "OW": 0.08, "P": 0.07, "R": 0.08, "S": 0.07,
+            "SH": 0.09, "T": 0.06, "TH": 0.08, "DH": 0.08, "UH": 0.07, "V": 0.07,
+            "W": 0.07, "Y": 0.07, "Z": 0.07, "KS": 0.08, "KW": 0.08, " ": 0.1  # pause
+        }
+
 
     def build_phoneme_map(self):
         
@@ -88,6 +96,13 @@ class PhonemeMapper:
 
     def apply_contextual_rules(self, word:str):
         pass
+
+    def assign_phoneme_durations(self,phoneme_sequence):
+        durations = []
+        for phoneme in phoneme_sequence:
+            duration = self.default_phoneme_duration.get(phoneme,0.07)
+            durations.append((phoneme,duration))
+        return durations
 
     def get_th_phoneme(self, word, index):
         voicedWords = ["this", "that", "the", "those", "these"]
@@ -195,15 +210,17 @@ class AcousticFeatureExtractor:
     def write_audio(self,waveform):
         sf.write("reconstructed_output.wav", waveform, self.sampleRate)
 
-t = TextPreprocessing("Hello world.")
+t = TextPreprocessing("Anish Raj.")
 
-print(t.numbersToText())
+
 
 phoneme = PhonemeMapper()
 
 features = AcousticFeatureExtractor()
 
-print(phoneme.map_text(t.numbersToText()))
+mapedText = phoneme.map_text(t.numbersToText())
+
+print(phoneme.assign_phoneme_durations(mapedText))
 
 FILE_PATH = r'd:\SIH project\AUDIO\REAL\linus-original.wav'
 
