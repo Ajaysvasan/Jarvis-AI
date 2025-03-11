@@ -269,6 +269,50 @@ class AcousticFeatureExtractor:
     def write_audio(self,waveform):
         sf.write("reconstructed_output.wav", waveform, self.sampleRate)
 
+
+class Vocoder:
+    def __init__(self,sampleRate = 16000):
+        self.sampleRate = sampleRate
+
+    def griffin_lim_vocoder(self,melSpecDb):
+        melPower = librosa. db_to_power(melSpecDb)
+        melFilter = librosa.filters.mel(sr = self.sampleRate, n_fft=1024,n_mels=80)
+        invMelFilter = np.linalg.pinv(melFilter)
+        magnitude = np.dot(invMelFilter,melPower)
+
+        waveform = librosa.griffinlim(magnitude,n_iter=32,hop_length=256,win_length=1024)
+
+        return waveform
+        
+    def save_waveform(self,waveform,filename = "output.wav"):
+        sf.write(filename,waveform,self.sampleRate)
+class TTS:
+    def __init__(self):
+        self.textPreprocessing = TextPreprocessing("")
+        self.phonemeMapper = PhonemeMapper()
+        self.featureExtractor = AcousticFeatureExtractor()
+        self.vocoder = Vocoder()
+
+    def synthesis(self,text:str,outputFileName = "output.wav",visualize = True):
+        self.textPreprocessing.text = text
+        normalizedText = self.textPreprocessing.numbersToText()
+
+        phonemeSequence = []
+        for word in normalizedText.split():
+            phonemeSequence.extend(self.phonemeMapper.map_word_to_phonemes(word) + [' '])
+        phonemeDurations = self.phonemeMapper.assign_phoneme_durations(phonemeSequence)
+        frameMapping = self.phonemeMapper.duration_to_frame_mapping(phonemeDurations)
+
+        dummyWaveform = np.random.rand(16000)
+
+        melSpec =  self.featureExtractor.extract_mel_spectrogram(dummyWaveform)
+        reconstructedWave = self.vocoder.griffin_lim_vocoder(melSpec)
+
+        self.vocoder.save_waveform(reconstructedWave,filename = outputFileName)
+        if visualize:
+            self.featureExtractor.visualize_mel_spectrogram(melSpec)
+        return outputFileName
+
 t = TextPreprocessing("Hello world.")
 phoneme = PhonemeMapper()
 features = AcousticFeatureExtractor()
@@ -292,3 +336,6 @@ print(phoneme.map_text(t.text))
 print(features.extract_mel_spectrogram(waveform=waveform))
 
 # print(features.inverted_mel_spectrogram(features.extract_mel_spectrogram(waveform)))
+
+tts = TTS()
+tts.synthesis("Hello Ajay, how are you doing?")
