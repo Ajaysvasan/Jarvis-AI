@@ -96,7 +96,6 @@ class PhonemeMapper:
         }
 
     def apply_contextual_rules(self, word: str) -> str:
-        # Rule 1: Silent letters
         if word.startswith("kn"):
             word = word.replace("k", "", 1)
         if word.startswith("wr"):
@@ -104,17 +103,15 @@ class PhonemeMapper:
         if word.startswith("gn"):
             word = word.replace("g", "", 1)
         if word.endswith("mb"):
-            word = word[:-1]  # remove 'b' in words like 'comb', 'bomb'
+            word = word[:-1]
 
-        # Rule 2: Phoneme simplification / merging
         word = word.replace("ai", "ay")
         word = word.replace("ea", "ee")
         word = word.replace("ie", "iy")
         word = word.replace("oo", "uw")
         word = word.replace("ou", "ow")
-        word = word.replace("igh", "ay")  # e.g., night → nayt
+        word = word.replace("igh", "ay") 
 
-        # Rule 3: Handle word-specific exceptions
         custom_exceptions = {
             "knight": "nite",
             "write": "rite",
