@@ -7,12 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 
+import json
+
 # text -> normalize -> phonemes -> spectrogram -> speech
 
 import torchaudio
 
 
-FILE_PATH = r'd:\SIH project\AUDIO\REAL\linus-original.wav'
+FILE_PATH = r'temp.wav'
 class TextPreprocessing:
     def __init__(self,text:str):
         self.text = text
@@ -133,7 +135,7 @@ class PhonemeMapper:
             durations.append((phoneme,duration))
         return durations
 
-    def get_th_phoneme(self, word, index):
+    def get_th_phoneme(self, word,index):
         voicedWords = ["this", "that", "the", "those", "these"]
         if word in voicedWords:
             return self.phoneme_map["digraphs"]["th"]["voiced"]
@@ -309,6 +311,45 @@ class TTS:
         if visualize:
             self.featureExtractor.visualize_mel_spectrogram(melSpec)
         return outputFileName
+    
+
+class PhonemeVocabularyBuider:
+    def __init__(self,phonemeMapper:dict):
+        self.phonemeMapper = phonemeMapper
+
+    def build_vocab(self,save_path = 'phoneme_vocab.json'):
+        uniquePhoneme = set()
+
+        for val in self.phonemeMapper.phoneme_map['singles'].values():
+            if isinstance(val,dict):
+                uniquePhoneme.update(val.values())
+
+            else:
+                uniquePhoneme.add(val)
+
+        for val in self.phonemeMapper.phoneme_map['digraphs'].values():
+            if isinstance(val,dict):
+                uniquePhoneme.update(val.values())
+
+            else:
+                uniquePhoneme.add(val)
+
+        uniquePhoneme.add("")
+
+        vocabList = ["<PAD>", "<UNK>"] + sorted(list(uniquePhoneme))
+
+        phonemeToId = {phoneme: idx for idx,phoneme in enumerate(vocabList)}
+
+        with open(save_path,'w') as file:
+            json.dump(phonemeToId,file,indent=4)
+
+        return phonemeToId
+
+    
+t = TextPreprocessing("Hello world.")
+phoneme = PhonemeMapper()
+print(phoneme.build_phoneme_map())
+
 if __name__ == "__main__":
     t = TextPreprocessing("Hello world.")
     phoneme = PhonemeMapper()
@@ -336,3 +377,7 @@ if __name__ == "__main__":
 
     tts = TTS()
     tts.synthesis("Hello Ajay, how are you doing?")
+    phonemeMapper = PhonemeMapper()
+    vocabBuilder = PhonemeVocabularyBuider(phonemeMapper)
+    phonemeVocab = vocabBuilder.build_vocab("phoneme_vocab.json")
+    print(phonemeVocab)

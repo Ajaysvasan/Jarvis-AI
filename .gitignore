@@ -53,3 +53,5 @@ learning.py
 
 temp.wav
 output.wav
+
+*.json
