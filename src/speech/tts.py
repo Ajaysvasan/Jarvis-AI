@@ -312,30 +312,30 @@ class TTS:
         if visualize:
             self.featureExtractor.visualize_mel_spectrogram(melSpec)
         return outputFileName
+if __name__ == "__main__":
+    t = TextPreprocessing("Hello world.")
+    phoneme = PhonemeMapper()
+    features = AcousticFeatureExtractor()
 
-t = TextPreprocessing("Hello world.")
-phoneme = PhonemeMapper()
-features = AcousticFeatureExtractor()
-
-text = t.numbersToText()
+    text = t.numbersToText()
 
 
-phoneme_seq = []
-for word in text.split():
-    phoneme_seq.extend(phoneme.map_word_to_phonemes(word) + [' '])
+    phoneme_seq = []
+    for word in text.split():
+        phoneme_seq.extend(phoneme.map_word_to_phonemes(word) + [' '])
 
-phoneme_durations = phoneme.assign_phoneme_durations(phoneme_seq)
-frame_mapping = phoneme.duration_to_frame_mapping(phoneme_durations)
+    phoneme_durations = phoneme.assign_phoneme_durations(phoneme_seq)
+    frame_mapping = phoneme.duration_to_frame_mapping(phoneme_durations)
 
-waveform, _ = features.load_audio(FILE_PATH)
-mel_spec = features.extract_mel_spectrogram(waveform)
+    waveform, _ = features.load_audio(FILE_PATH)
+    mel_spec = features.extract_mel_spectrogram(waveform)
 
-features.visualize_phoneme_alignment(mel_spec, frame_mapping)
+    features.visualize_phoneme_alignment(mel_spec, frame_mapping)
 
-print(phoneme.map_text(t.text))
-print(features.extract_mel_spectrogram(waveform=waveform))
+    print(phoneme.map_text(t.text))
+    print(features.extract_mel_spectrogram(waveform=waveform))
 
-# print(features.inverted_mel_spectrogram(features.extract_mel_spectrogram(waveform)))
+    # print(features.inverted_mel_spectrogram(features.extract_mel_spectrogram(waveform)))
 
-tts = TTS()
-tts.synthesis("Hello Ajay, how are you doing?")
+    tts = TTS()
+    tts.synthesis("Hello Ajay, how are you doing?")
