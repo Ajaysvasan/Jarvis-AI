@@ -1,3 +1,5 @@
+# text -> normalize -> phonemes -> spectrogram -> speech
+import librosa.display
 import re
 import unidecode
 import inflect
@@ -10,11 +12,10 @@ import soundfile as sf
 import torch
 import json
 from torch.utils.data import Dataset,DataLoader
+import torch.nn as nn
 
-# text -> normalize -> phonemes -> spectrogram -> speech
 
-import torchaudio
-
+EPOCHS = 50
 
 FILE_PATH = r'temp.wav'
 class TextPreprocessing:
@@ -384,65 +385,142 @@ class TTSDataset(Dataset):
         phonemeTensor = self.converter.phoneme_to_tensor(phoneme,maxLength = self.maxPhonemeLength)
         melTensor = torch.tensor(melSpec,dtype = torch.float32)
 
-        if self.maxMelSpecLength:
+
+        if self.maxPhonemeLength:
             timeDim = melTensor.shape[1]
-            if timeDim < self.maxMelSpecLength:
-                pad = self.maxMelSpecLength - timeDim
+            if timeDim < self.maxPhonemeLength:
+                pad = self.maxPhonemeLength - timeDim
                 melTensor = torch.nn.functional.pad(melTensor,(0,pad),mode = 'constant',value=0 )
             else:
-                melTensor = melTensor[:,:self.maxMelSpecLength]
+                melTensor = melTensor[:,:self.maxPhonemeLength]
+        
 
         return phonemeTensor,melTensor
     
+class PhonemeToMelModel(nn.Module):
+    def __init__(self, vocabSize, embeddigDim = 128,hiddenDim=256,numLayers = 8,melBins = 80):
+        super(PhonemeToMelModel,self).__init__()
+        self.embedding = nn.Embedding(vocabSize,embedding_dim=embeddigDim,padding_idx=0)
+        self.lstm = nn.LSTM(input_size=embeddigDim,
+                            hidden_size=hiddenDim,
+                            num_layers=numLayers,
+                            batch_first=True,
+                            bidirectional=True)
+        
+        self.fc = nn.Linear(hiddenDim * 2, melBins)
+
+    def forward(self,X):
+        x = self.embedding(X)
+        lstmOut,_ = self.lstm(x)
+        melOut = self.fc(lstmOut)
+
+        return melOut
+
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class Trainer:
+    def __init__(self,model,dataLoader,epochs = 50,lr=1e-3,modelPath = 'phonemeToModel.pth'):
+        self.model = model
+        self.model.to(DEVICE)
+        self.dataLoader = dataLoader
+        self.epochs = epochs
+        self.lr = lr
+        self.modelPath = modelPath
+        self.optimizer = torch.optim.Adam(self.model.parameters(),lr=lr)
+        self.criterion = nn.MSELoss()
+
+    def train(self):
+        self.model.train()
+        for epoch in range(self.epochs):
+            epochLoss = 0.0
+            for phonemeBatch,melBatch in self.dataLoader:
+                phonemeBatch,melBatch = phonemeBatch.to(DEVICE),melBatch.to(DEVICE)
+                self.optimizer.zero_grad()
+                output = self.model(phonemeBatch)
+                output = output.transpose(1,2)
+                if melBatch.shape[2] > output.shape[2]:
+                    melBatch = melBatch[:,:output.shape[2]]
+                elif melBatch.shape[2] < output.shape[2]:
+                    pad = output.shape[2] - melBatch.shape[2]
+                    melBatch = torch.nn.functional.pad(melBatch,(0,pad),mode = 'constant',value=0)
+                loss = self.criterion(output,melBatch)
+                loss.backward()
+                self.optimizer.step()
+                epochLoss+=loss.item()
+            print(f'Epoch {epoch} | Loss: {epochLoss/len(self.dataLoader):.4f}')
+        self.save()
+
+    def save(self):
+        torch.save(self.model.state_dict(),self.modelPath)
+        print("Model has been saved")
+
+    def load(self):
+        self.model.load_state_dict(torch.load(self.modelPath))
+        self.model.eval()
+        print("model has been loaded")
+
+def infer(text,model,converter,phonemeMapper,featureExtractor,vocoder,maxPhonemeLength = 30):
+    textPre = TextPreprocessing(text)
+    normText = textPre.numbersToText()
+
+    phonemeSeq = []
+    for word in normText.split():
+            phonemeSeq.extend(phonemeMapper.map_word_to_phonemes(word) + [' '])
+
+    inputTensor = converter.phoneme_to_tensor(phonemeSeq,maxLength = maxPhonemeLength).unsqueeze(0)
+    inputTensor = inputTensor.to(DEVICE)
+    model.eval()
+
+    with torch.no_grad():
+        melPred = model(inputTensor)
+        melPred = melPred.squeeze(0).transpose(0,1)
+
+    melPredNp = melPred.detach().cpu().numpy()
+    waveform = vocoder.griffin_lim_vocoder(melPredNp)
+    vocoder.save_waveform(waveform, filename='inference_output.wav')
+    print("Audio saved successfully")
+
 
 if __name__ == "__main__":
+    texts = [
+        "Hello world.",
+        "Ajay is building his own TTS system.",
+        "Deep learning is powerful.",
+        "How are you doing today?"
+    ]
 
-    t = TextPreprocessing("Hello world.")
-    phoneme = PhonemeMapper()
     features = AcousticFeatureExtractor()
-
-    text = t.numbersToText()
-
-
-    phoneme_seq = []
-    for word in text.split():
-        phoneme_seq.extend(phoneme.map_word_to_phonemes(word) + [' '])
-
-    phoneme_durations = phoneme.assign_phoneme_durations(phoneme_seq)
-    frame_mapping = phoneme.duration_to_frame_mapping(phoneme_durations)
-
-    waveform, _ = features.load_audio(FILE_PATH)
-    mel_spec = features.extract_mel_spectrogram(waveform)
-
-    features.visualize_phoneme_alignment(mel_spec, frame_mapping)
-
-    print(phoneme.map_text(t.text))
-    print(features.extract_mel_spectrogram(waveform=waveform))
-
-    # print(features.inverted_mel_spectrogram(features.extract_mel_spectrogram(waveform)))
-
-    tts = TTS()
-    tts.synthesis("Hello Ajay, how are you doing?")
     phonemeMapper = PhonemeMapper()
     vocabBuilder = PhonemeVocabularyBuilder(phonemeMapper)
-    phonemeVocab = vocabBuilder.build_vocab("phoneme_vocab.json")
-    
-
-
+    vocab = vocabBuilder.build_vocab("phoneme_vocab.json")
     converter = PhonemeToTensorConverter("phoneme_vocab.json")
 
-    tensor = converter.phoneme_to_tensor(phoneme_seq, maxLength=15)
-    print(tensor)
+    phoneme_sequences = []
+    mel_specs = []
 
-    reverse = converter.tensor_to_phonemes(tensor)
-    print(reverse)
+    for text in texts:
+        textPre = TextPreprocessing(text)
+        normText = textPre.numbersToText()
+        phoneme_seq = []
+        for word in normText.split():
+            phoneme_seq.extend(phonemeMapper.map_word_to_phonemes(word) + [' '])
+        phoneme_sequences.append(phoneme_seq)
 
-    dataset = TTSDataset([phoneme_seq], [mel_spec], converter, maxPhonemeLength=15, maxMelSpecLength=60)
+        # Dummy audio for now (load the same temp.wav for all samples)
+        waveform, _ = features.load_audio(FILE_PATH)
+        mel_spec = features.extract_mel_spectrogram(waveform)
+        mel_specs.append(mel_spec)
 
-    loader = DataLoader(dataset,batch_size=2,shuffle=True)
+    # Dataset + Dataloader
+    dataset = TTSDataset(phoneme_sequences, mel_specs, converter, maxPhonemeLength=30, maxMelSpecLength=80)
+    loader = DataLoader(dataset, batch_size=2, shuffle=True)
 
-    for batch in loader:
-        phonemeBatch,melBatch = batch
-        print(f'Phoneme Batch shape: {phonemeBatch.shape}')
-        print(f'Mel Spec Batch shape: {melBatch.shape}')
-        break
+    # Model and Trainer
+    model = PhonemeToMelModel(vocabSize=len(converter))
+    trainer = Trainer(model, loader, epochs=EPOCHS, modelPath="phonemeToMelModel.pth")
+    trainer.train()
+
+    # Inference Test
+    trainer.load()
+    infer("Welcome to Jarvis AI", model, converter, phonemeMapper, features, Vocoder())

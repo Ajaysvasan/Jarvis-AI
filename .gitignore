@@ -51,7 +51,7 @@ desktop.ini
 .speech/
 learning.py
 
-temp.wav
-output.wav
+*.wav
+
 
 *.json
