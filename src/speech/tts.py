@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 
+import torch
 import json
+from torch.utils.data import Dataset,DataLoader
 
 # text -> normalize -> phonemes -> spectrogram -> speech
 
@@ -313,7 +315,7 @@ class TTS:
         return outputFileName
     
 
-class PhonemeVocabularyBuider:
+class PhonemeVocabularyBuilder:
     def __init__(self,phonemeMapper:dict):
         self.phonemeMapper = phonemeMapper
 
@@ -334,7 +336,7 @@ class PhonemeVocabularyBuider:
             else:
                 uniquePhoneme.add(val)
 
-        uniquePhoneme.add("")
+        uniquePhoneme.add(" ")
 
         vocabList = ["<PAD>", "<UNK>"] + sorted(list(uniquePhoneme))
 
@@ -345,12 +347,56 @@ class PhonemeVocabularyBuider:
 
         return phonemeToId
 
+class PhonemeToTensorConverter:
+    def __init__(self,vocabPath = "phoneme_vocab.json"):
+        with open(vocabPath,'r') as file:
+            self.phonemeToId = json.load(file)
+        self.idToPhoneme = {v:k for k,v in self.phonemeToId.items()}
+        self.padId = self.phonemeToId.get("<PAD>",0)
+        self.unkToId = self.phonemeToId.get("<UNK>",1)
+
+    def phoneme_to_tensor(self,phonemeSequence,maxLength = None):
+        ids = [self.phonemeToId.get(p,self.unkToId) for p in phonemeSequence]
+        if maxLength:
+            ids = ids[:maxLength] + [self.padId] * max(0,maxLength - len(ids))
+        return torch.tensor(ids, dtype=torch.long)
+        
+    def tensor_to_phonemes(self,idTensor):
+        return [self.idToPhoneme.get(int(idx),"<UNK>") for idx in idTensor]
+        
+    def __len__(self):
+        return len(self.phonemeToId)
     
-t = TextPreprocessing("Hello world.")
-phoneme = PhonemeMapper()
-print(phoneme.build_phoneme_map())
+class TTSDataset(Dataset):
+    def __init__(self,phonemeSequence, melSpecs,converter,maxPhonemeLength = None,maxMelSpecLength = None):
+        self.phonemeSequence = phonemeSequence
+        self.melSpecs = melSpecs
+        self.converter = converter
+        self.maxPhonemeLength = maxPhonemeLength
+        self.maxMelSpecLength = maxMelSpecLength
+    
+    def __len__(self):
+        return len(self.phonemeSequence)
+
+    def __getitem__(self, idx):
+        phoneme = self.phonemeSequence[idx]
+        melSpec = self.melSpecs[idx]
+        phonemeTensor = self.converter.phoneme_to_tensor(phoneme,maxLength = self.maxPhonemeLength)
+        melTensor = torch.tensor(melSpec,dtype = torch.float32)
+
+        if self.maxMelSpecLength:
+            timeDim = melTensor.shape[1]
+            if timeDim < self.maxMelSpecLength:
+                pad = self.maxMelSpecLength - timeDim
+                melTensor = torch.nn.functional.pad(melTensor,(0,pad),mode = 'constant',value=0 )
+            else:
+                melTensor = melTensor[:,:self.maxMelSpecLength]
+
+        return phonemeTensor,melTensor
+    
 
 if __name__ == "__main__":
+
     t = TextPreprocessing("Hello world.")
     phoneme = PhonemeMapper()
     features = AcousticFeatureExtractor()
@@ -378,6 +424,25 @@ if __name__ == "__main__":
     tts = TTS()
     tts.synthesis("Hello Ajay, how are you doing?")
     phonemeMapper = PhonemeMapper()
-    vocabBuilder = PhonemeVocabularyBuider(phonemeMapper)
+    vocabBuilder = PhonemeVocabularyBuilder(phonemeMapper)
     phonemeVocab = vocabBuilder.build_vocab("phoneme_vocab.json")
-    print(phonemeVocab)
+    
+
+
+    converter = PhonemeToTensorConverter("phoneme_vocab.json")
+
+    tensor = converter.phoneme_to_tensor(phoneme_seq, maxLength=15)
+    print(tensor)
+
+    reverse = converter.tensor_to_phonemes(tensor)
+    print(reverse)
+
+    dataset = TTSDataset([phoneme_seq], [mel_spec], converter, maxPhonemeLength=15, maxMelSpecLength=60)
+
+    loader = DataLoader(dataset,batch_size=2,shuffle=True)
+
+    for batch in loader:
+        phonemeBatch,melBatch = batch
+        print(f'Phoneme Batch shape: {phonemeBatch.shape}')
+        print(f'Mel Spec Batch shape: {melBatch.shape}')
+        break
