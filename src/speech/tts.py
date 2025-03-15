@@ -386,13 +386,13 @@ class TTSDataset(Dataset):
         melTensor = torch.tensor(melSpec,dtype = torch.float32)
 
 
-        if self.maxPhonemeLength:
+        if self.maxMelSpecLength:
             timeDim = melTensor.shape[1]
-            if timeDim < self.maxPhonemeLength:
-                pad = self.maxPhonemeLength - timeDim
+            if timeDim < self.maxMelSpecLength:
+                pad = self.maxMelSpecLength - timeDim
                 melTensor = torch.nn.functional.pad(melTensor,(0,pad),mode = 'constant',value=0 )
             else:
-                melTensor = melTensor[:,:self.maxPhonemeLength]
+                melTensor = melTensor[:,:self.maxMelSpecLength]
         
 
         return phonemeTensor,melTensor
@@ -507,20 +507,16 @@ if __name__ == "__main__":
             phoneme_seq.extend(phonemeMapper.map_word_to_phonemes(word) + [' '])
         phoneme_sequences.append(phoneme_seq)
 
-        # Dummy audio for now (load the same temp.wav for all samples)
         waveform, _ = features.load_audio(FILE_PATH)
         mel_spec = features.extract_mel_spectrogram(waveform)
         mel_specs.append(mel_spec)
 
-    # Dataset + Dataloader
     dataset = TTSDataset(phoneme_sequences, mel_specs, converter, maxPhonemeLength=30, maxMelSpecLength=80)
     loader = DataLoader(dataset, batch_size=2, shuffle=True)
 
-    # Model and Trainer
     model = PhonemeToMelModel(vocabSize=len(converter))
     trainer = Trainer(model, loader, epochs=EPOCHS, modelPath="phonemeToMelModel.pth")
     trainer.train()
 
-    # Inference Test
     trainer.load()
     infer("Welcome to Jarvis AI", model, converter, phonemeMapper, features, Vocoder())
