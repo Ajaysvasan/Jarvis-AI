@@ -398,7 +398,7 @@ class TTSDataset(Dataset):
         return phonemeTensor,melTensor
     
 class PhonemeToMelModel(nn.Module):
-    def __init__(self, vocabSize, embeddigDim = 128,hiddenDim=256,numLayers = 8,melBins = 80):
+    def __init__(self, vocabSize, embeddigDim = 128,hiddenDim=256,numLayers = 2,melBins = 80):
         super(PhonemeToMelModel,self).__init__()
         self.embedding = nn.Embedding(vocabSize,embedding_dim=embeddigDim,padding_idx=0)
         self.lstm = nn.LSTM(input_size=embeddigDim,
@@ -439,11 +439,6 @@ class Trainer:
                 self.optimizer.zero_grad()
                 output = self.model(phonemeBatch)
                 output = output.transpose(1,2)
-                if melBatch.shape[2] > output.shape[2]:
-                    melBatch = melBatch[:,:output.shape[2]]
-                elif melBatch.shape[2] < output.shape[2]:
-                    pad = output.shape[2] - melBatch.shape[2]
-                    melBatch = torch.nn.functional.pad(melBatch,(0,pad),mode = 'constant',value=0)
                 loss = self.criterion(output,melBatch)
                 loss.backward()
                 self.optimizer.step()
@@ -476,10 +471,17 @@ def infer(text,model,converter,phonemeMapper,featureExtractor,vocoder,maxPhoneme
         melPred = model(inputTensor)
         melPred = melPred.squeeze(0).transpose(0,1)
 
-    melPredNp = melPred.detach().cpu().numpy()
+    melPredNp = melPred.detach().cpu().numpy()   
+    melPredNp = np.clip(melPredNp, a_min=-80, a_max=0)    
+    features.visualize_mel_spectrogram(melPredNp)
+    print("Mel Output Range:", melPredNp.min(), melPredNp.max())
+
     waveform = vocoder.griffin_lim_vocoder(melPredNp)
     vocoder.save_waveform(waveform, filename='inference_output.wav')
     print("Audio saved successfully")
+
+
+
 
 
 if __name__ == "__main__":
@@ -507,8 +509,10 @@ if __name__ == "__main__":
             phoneme_seq.extend(phonemeMapper.map_word_to_phonemes(word) + [' '])
         phoneme_sequences.append(phoneme_seq)
 
-        waveform, _ = features.load_audio(FILE_PATH)
-        mel_spec = features.extract_mel_spectrogram(waveform)
+        duration = 1
+        t = np.linspace(0, duration, int(features.sampleRate * duration))
+        dummy_waveform = 0.5 * np.sin(2 * np.pi * 220 * t)
+        mel_spec = features.extract_mel_spectrogram(dummy_waveform)
         mel_specs.append(mel_spec)
 
     dataset = TTSDataset(phoneme_sequences, mel_specs, converter, maxPhonemeLength=30, maxMelSpecLength=80)
@@ -520,3 +524,7 @@ if __name__ == "__main__":
 
     trainer.load()
     infer("Welcome to Jarvis AI", model, converter, phonemeMapper, features, Vocoder())
+
+    vocoder = Vocoder()
+    waveform = vocoder.griffin_lim_vocoder(mel_spec)
+    vocoder.save_waveform(waveform, filename="test_sine_vocoder.wav")
