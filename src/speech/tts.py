@@ -1,3 +1,6 @@
+import g2p_en
+import phonemizer
+import torch
 
 
 class TTSConfig:
