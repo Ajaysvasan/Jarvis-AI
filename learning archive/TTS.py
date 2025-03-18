@@ -1,5 +1,5 @@
 # text -> normalize -> phonemes -> spectrogram -> speech
-# ajay 80lpa
+
 import librosa.display
 import re
 import unidecode
